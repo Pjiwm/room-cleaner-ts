@@ -1,0 +1,33 @@
+.test {
+	min-height: 20px;
+	height: 20px;
+	width: 20px;
+	min-width: 20px;
+	display: inline-block;
+	border: 1px solid black;
+}
+
+.grid {
+	display: grid;
+	grid-template-columns: repeat(25, 20px)
+}
+
+.empty {
+	background: rgb(141, 141, 141);
+}
+
+.furniture {
+	background: black;
+}
+
+.charger {
+	background: green;
+}
+
+.roomba {
+	background: red;
+}
+
+.traveled {
+	background: yellow;
+}

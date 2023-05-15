@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import './index.css'
 import { keepNumberInDomain, numberIsInDomain, randomNumberBetween } from './utils/math';
-
-type mapper = React.Dispatch<React.SetStateAction<TileType[][]>>;
-type counter = React.MutableRefObject<number>;
+type Mapper = React.Dispatch<React.SetStateAction<TileType[][]>>;
+type Counter = React.MutableRefObject<number>;
 
 enum TileType {
   Empty = 0,
@@ -21,6 +20,7 @@ const Entities = {
   totalFurnitureBlocks: 2,
   totalUniqueTraveledBlocks: 0,
   path: Array<{ x: number, y: number }>(),
+  rgb: [255, 255, 0]
 }
 
 
@@ -45,8 +45,6 @@ function applyMask(map: Map, mask: Map, x: number, y: number) {
       map[y + yi][x + xi] = mask[yi][xi];
     }
   }
-
-  return map;
 }
 
 function generateCharger(map: Map): Map {
@@ -62,7 +60,8 @@ function generateCharger(map: Map): Map {
   Entities.Charger.x = x;
   Entities.Charger.y = y;
 
-  return applyMask(map, create2DArray(height, width, TileType.Charger), x, y);
+  applyMask(map, create2DArray(height, width, TileType.Charger), x, y);
+  return map;
 }
 
 function generateRoomba(map: Map): Map {
@@ -78,7 +77,8 @@ function generateRoomba(map: Map): Map {
   Entities.Roomba.x = x;
   Entities.Roomba.y = y;
 
-  return applyMask(map, create2DArray(height, width, TileType.Roomba), x, y);
+  applyMask(map, create2DArray(height, width, TileType.Roomba), x, y);
+  return map;
 }
 
 
@@ -131,7 +131,7 @@ function generateFurnitureForPlay(map: Map, amount: number) {
 
     if (!checkCollision(newMap, furniture, x, y)) {
       Entities.totalFurnitureBlocks += furniture.length * furniture[0].length;
-      newMap = applyMask(newMap, furniture, x, y);
+      applyMask(newMap, furniture, x, y);
       i++;
     }
 
@@ -141,122 +141,128 @@ function generateFurnitureForPlay(map: Map, amount: number) {
 }
 
 function remaining(): number {
-  return 25 * 15 - Entities.totalFurnitureBlocks - Entities.totalUniqueTraveledBlocks;
+  // return 25 * 15 - Entities.totalFurnitureBlocks - Entities.totalUniqueTraveledBlocks;
+  return 25 * 15 - Entities.totalFurnitureBlocks - Entities.path.length;
 }
 
-function moveRoomba(map: Map, x: number, y: number) {
+function moveRoomba(map: Map, x: number, y: number, setMap: Mapper): boolean {
   const roomba = create2DArray(1, 1, TileType.Roomba);
   const traveled = create2DArray(1, 1, TileType.Traveled);
 
-  const newX = Entities.Roomba.x + x;
-  const newY = Entities.Roomba.y + y;
+  const xIsBetweenDomain = numberIsInDomain(0, 25, x);
+  const yIsBetweenDomain = numberIsInDomain(0, 15, y);
 
-  const newXIsBetweenDomain = numberIsInDomain(0, 25, newX);
-  const newYIsBetweenDomain = numberIsInDomain(0, 15, newY);
-
-  if (newXIsBetweenDomain === false || newYIsBetweenDomain === false) {
-    console.log('out of bounds')
-    return;
+  if (xIsBetweenDomain === false || yIsBetweenDomain === false) {
+    return false;
   }
 
-  if (checkRoombaCollision(map, roomba, newX, newY)) {
-    console.log('collision')
-    return;
+  if (checkRoombaCollision(map, roomba, x, y)) {
+    return false;
   }
 
 
-  if (map[newY][newX] !== TileType.Traveled && map[newY][newX] !== TileType.Charger) {
-    Entities.totalUniqueTraveledBlocks++;
+  if (map[y][x] !== TileType.Traveled && map[y][x] !== TileType.Charger) {
+    // Entities.totalUniqueTraveledBlocks++;
+    if (Entities.path.find((p) => p.x === x && p.y === y) === undefined) {
+      Entities.path.push({ x, y });
+    }
   }
 
-  applyMask(map, roomba, newX, newY);
+  applyMask(map, roomba, x, y);
   applyMask(map, traveled, Entities.Roomba.x, Entities.Roomba.y);
 
   if (Entities.Charger.x === Entities.Roomba.x && Entities.Charger.y === Entities.Roomba.y) {
-    const chrarger = create2DArray(1, 1, TileType.Charger);
-    applyMask(map, chrarger, Entities.Charger.x, Entities.Charger.y);
+    const charger = create2DArray(1, 1, TileType.Charger);
+    applyMask(map, charger, Entities.Charger.x, Entities.Charger.y);
   }
 
+  Entities.Roomba.x = x;
+  Entities.Roomba.y = y;
 
-  Entities.Roomba.x += x;
-  Entities.Roomba.y += y;
-  Entities.path.push({ x: Entities.Roomba.x, y: Entities.Roomba.y });
-  return map;
+  setMap([...map])
+  return true;
 }
 
-function depthFirstSearch(map: Map, dx: number, dy: number, setMap: mapper) {
-  console.log(2)
-  let cx = Entities.Roomba.x + dx;
-  let cy = Entities.Roomba.y + dy;
+function moveRoombaDelta(map: Map, x: number, y: number, setMap: Mapper) {
+  const newX = Entities.Roomba.x + x;
+  const newY = Entities.Roomba.y + y;
 
-  let xIsInBound = numberIsInDomain(0, map[0].length, cx);
-  let yIsInBound = numberIsInDomain(0, map.length, cy);
+  return moveRoomba(map, newX, newY, setMap);
+}
+
+// Usage!
+function depthFirstSearch(map: Map, x: number, y: number, setMap: Mapper, moveCount: Counter) {
+  let xIsInBound = numberIsInDomain(0, map[0].length, x);
+  let yIsInBound = numberIsInDomain(0, map.length, y);
 
   if (xIsInBound === false || yIsInBound === false) {
     return;
   }
 
-  let isDiscovered = map[cy][cx] === TileType.Traveled;
+  let isDiscovered = map[y][x] === TileType.Traveled;
   if (isDiscovered) {
     return;
   }
-  // if (roombaIsOnCharger()) {
-  //   return;
-  // }
-
-  let newMap = moveRoomba(map, dx, dy);
-  if (newMap === undefined) {
+  if (roombaIsOnCharger()) {
     return;
   }
 
-  console.log("coordinates", cx, cy)
-  setMap([...newMap]);
 
-  setTimeout(() => {
-    depthFirstSearch(map, 1, 0, setMap)
-    depthFirstSearch(map, -1, 0, setMap);
-    depthFirstSearch(map, 0, 1, setMap);
-    depthFirstSearch(map, 0, -1, setMap);
-  }, 750);
+  let moved = moveRoomba(map, x, y, setMap);
+  if (moved === false) {
+    return;
+  } else {
+    moveCount.current++;
+  }
+
+  depthFirstSearch(map, x + 1, y, setMap, moveCount);
+  depthFirstSearch(map, x - 1, y, setMap, moveCount);
+  depthFirstSearch(map, x, y + 1, setMap, moveCount);
+  depthFirstSearch(map, x, y - 1, setMap, moveCount);
 }
-function randomMove(_map: Map, setMap: mapper, moveCount: counter) {
+
+function randomMove(_map: Map, setMap: Mapper, moveCount: Counter) {
   while (remaining() > 0) {
-    let map: Map | undefined;
+    let moved = false;
     switch (randomNumberBetween(0, 3)) {
       case 0:
-        map = moveRoomba(_map, 1, 0);
+        moved = moveRoombaDelta(_map, 1, 0, setMap);
         break;
       case 1:
-        map = moveRoomba(_map, -1, 0);
+        moved = moveRoombaDelta(_map, -1, 0, setMap);
         break;
       case 2:
-        map = moveRoomba(_map, 0, 1);
+        moved = moveRoombaDelta(_map, 0, 1, setMap);
         break;
       case 3:
-        map = moveRoomba(_map, 0, -1);
+        moved = moveRoombaDelta(_map, 0, -1, setMap);
         break;
     }
-    if (map !== undefined) {
+    if (moved) {
       moveCount.current++;
-      setMap([...map]);
     }
   }
 
 }
 
-function breadthFirstSearch(_map: Map, setMap: mapper, moveCount: counter) {
+function breadthFirstSearch(_map: Map, setMap: Mapper, moveCount: Counter) {
   let map = _map;
   let queue: { x: number, y: number }[] = [];
   queue.push(Entities.Roomba);
-  let visisted: Set<{ x: number, y: number }> = new Set();
-  visisted.add(Entities.Roomba);
+  // let visisted: Set<{ x: number, y: number }> = new Set();
+  let visisted: Array<{ x: number, y: number }> = [];
+  visisted.push(Entities.Roomba);
   while (queue.length > 0) {
     let current = queue.shift();
-
+    if (current === undefined) {
+      return;
+    }
+    if (roombaIsOnCharger()) {
+      return;
+    }
     if (current == Entities.Charger) {
       // Path to target found! Return the path or perform necessary operations.
       // You can use a separate function to reconstruct the path if needed.
-      console.log("found")
       return;
     }
 
@@ -267,8 +273,8 @@ function breadthFirstSearch(_map: Map, setMap: mapper, moveCount: counter) {
       { x: 0, y: -1 }, // Up
     ];
     for (const move of possibleMoves) {
-      let cx = Entities.Roomba.x + move.x;
-      let cy = Entities.Roomba.y + move.y;
+      let cx = current.x + move.x;
+      let cy = current.y + move.y;
       let xIsInBound = numberIsInDomain(0, map[0].length, cx);
       let yIsInBound = numberIsInDomain(0, map.length, cy);
       if (xIsInBound === false || yIsInBound === false) {
@@ -277,34 +283,21 @@ function breadthFirstSearch(_map: Map, setMap: mapper, moveCount: counter) {
       if (map[cy][cx] === TileType.Furniture) {
         continue;
       }
-      if (visisted.has({ x: cx, y: cy })) {
+
+      if (visisted.find(item => item.x === cx && item.y === cy) !== undefined) {
         continue;
       }
 
-      console.log("roomba:", Entities.Roomba)
-      console.log("charger:", Entities.Charger)
-      console.log(queue.length);
-      if (queue.length > 1000) {
-        console.log("queue too long")
-        return;
-      }
-
-      let newMap = moveRoomba(map, move.x, move.y);
-      if (newMap !== undefined) {
-        queue.push({ x: cx, y: cy });
-        visisted.add({ x: cx, y: cy });
-        map = newMap;
-        moveCount.current++;
-        setMap([...map]);
-      }
+      queue.push({ x: current.x + move.x, y: current.y + move.y });
     }
 
-
+    let moved = moveRoomba(map, current.x, current.y, setMap);
+    if (moved) {
+      visisted.push(current);
+      moveCount.current++;
+    }
   }
-
-
 }
-
 
 function App() {
   const [map, setMap] = useState<TileType[][]>([[0]])
@@ -318,34 +311,28 @@ function App() {
     generateCharger(map);
     generateRoomba(map);
 
-    // depthFirstSearch(map, 0, 0, setMap);
-
     setMap([...map]);
 
     window.addEventListener('keydown', e => {
       console.log(e.key)
       if (e.key === 'ArrowUp') {
-        const movement = moveRoomba(map, 0, -1);
+        const movement = moveRoombaDelta(map, 0, -1, setMap);
         if (movement) {
-          setMap([...movement]);
           moveCount.current++;
         }
       } else if (e.key === 'ArrowDown') {
-        const movement = moveRoomba(map, 0, 1);
+        const movement = moveRoombaDelta(map, 0, 1, setMap);
         if (movement) {
-          setMap([...movement]);
           moveCount.current++;
         }
       } else if (e.key === 'ArrowLeft') {
-        const movement = moveRoomba(map, -1, 0);
+        const movement = moveRoombaDelta(map, -1, 0, setMap);
         if (movement) {
-          setMap([...movement]);
           moveCount.current++;
         }
       } else if (e.key === 'ArrowRight') {
-        const movement = moveRoomba(map, 1, 0);
+        const movement = moveRoombaDelta(map, 1, 0, setMap);
         if (movement) {
-          setMap([...movement]);
           moveCount.current++;
         }
       }
@@ -354,21 +341,13 @@ function App() {
 
   }, [])
 
-  // useEffect(() => {
-  //   const timer = () => {
-  //     dfsSearch(map, Entities.Roomba.x, Entities.Roomba.y, setMap);
-  //   };
-
-  //   timerRef.current = setInterval(timer, 500);
-  // },[timerRef])
-
   return (
     <div>
       <button onClick={() => {
         clearInterval(timerRef.current);
       }}>stop</button>
       <button onClick={() => {
-        depthFirstSearch(map, 0, 0, setMap);
+        depthFirstSearch(map, Entities.Roomba.x, Entities.Roomba.y, setMap, moveCount);
       }}>DFS</button>
       <button onClick={() => {
         randomMove(map, setMap, moveCount);
@@ -376,7 +355,8 @@ function App() {
       <button onClick={() => {
         breadthFirstSearch(map, setMap, moveCount);
       }}>BFS</button>
-      <div>Moves: {moveCount.current} progress: {25 * 15 - Entities.totalFurnitureBlocks - Entities.totalUniqueTraveledBlocks}</div>
+      <div>Moves: {moveCount.current} progress: {remaining()} cleaned: {Entities.path.length}</div>
+
       <div className='grid'>
         {map.map((y, yi) => y.map((x, xi) => <Tile data={x} key={`${yi}-${xi}`} />))}
       </div>
@@ -385,28 +365,29 @@ function App() {
 }
 
 function Tile({ data }: { data: TileType }) {
-  console.log(Entities.path.at(data))
-  let color = 'empty';
-
+  let color = 'white';
   switch (data) {
     case TileType.Furniture:
-      color = 'furniture'
+      color = 'SlateBlue'
       break;
     case TileType.Charger:
-      color = 'charger'
+      color = 'green'
       break;
     case TileType.Roomba:
-      color = 'roomba'
+      color = 'red'
       break;
     case TileType.Traveled:
-      color = 'traveled'
+
+      const [r, g, b] = Entities.rgb;
+      color = `rgb(${r},${g},${b})`
+      Entities.rgb = [r - 2, g - 2, b]
       break;
     default:
       color = 'empty'
       break;
   }
 
-  return <div className={`test ${color}`}>&nbsp;</div>
+  return <div className={'test'} style={{ background: color }}>&nbsp;</div>
 }
 
 export default App

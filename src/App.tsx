@@ -20,6 +20,7 @@ const Entities = {
   Charger: { x: 0, y: 0 },
   totalFurnitureBlocks: 2,
   totalUniqueTraveledBlocks: 0,
+  path: Array<{ x: number, y: number }>(),
 }
 
 
@@ -179,7 +180,7 @@ function moveRoomba(map: Map, x: number, y: number) {
 
   Entities.Roomba.x += x;
   Entities.Roomba.y += y;
-
+  Entities.path.push({ x: Entities.Roomba.x, y: Entities.Roomba.y });
   return map;
 }
 
@@ -235,13 +236,71 @@ function randomMove(_map: Map, setMap: mapper, moveCount: counter) {
         map = moveRoomba(_map, 0, -1);
         break;
     }
-    console.log("help");
     if (map !== undefined) {
       moveCount.current++;
       setMap([...map]);
     }
   }
 
+}
+
+function breadthFirstSearch(_map: Map, setMap: mapper, moveCount: counter) {
+  let map = _map;
+  let queue: { x: number, y: number }[] = [];
+  queue.push(Entities.Roomba);
+  let visisted: Set<{ x: number, y: number }> = new Set();
+  visisted.add(Entities.Roomba);
+  while (queue.length > 0) {
+    let current = queue.shift();
+
+    if (current == Entities.Charger) {
+      // Path to target found! Return the path or perform necessary operations.
+      // You can use a separate function to reconstruct the path if needed.
+      console.log("found")
+      return;
+    }
+
+    const possibleMoves = [
+      { x: 1, y: 0 }, // Right
+      { x: -1, y: 0 }, // Left
+      { x: 0, y: 1 }, // Down
+      { x: 0, y: -1 }, // Up
+    ];
+    for (const move of possibleMoves) {
+      let cx = Entities.Roomba.x + move.x;
+      let cy = Entities.Roomba.y + move.y;
+      let xIsInBound = numberIsInDomain(0, map[0].length, cx);
+      let yIsInBound = numberIsInDomain(0, map.length, cy);
+      if (xIsInBound === false || yIsInBound === false) {
+        continue;
+      }
+      if (map[cy][cx] === TileType.Furniture) {
+        continue;
+      }
+      if (visisted.has({ x: cx, y: cy })) {
+        continue;
+      }
+
+      console.log("roomba:", Entities.Roomba)
+      console.log("charger:", Entities.Charger)
+      console.log(queue.length);
+      if (queue.length > 1000) {
+        console.log("queue too long")
+        return;
+      }
+
+      let newMap = moveRoomba(map, move.x, move.y);
+      if (newMap !== undefined) {
+        queue.push({ x: cx, y: cy });
+        visisted.add({ x: cx, y: cy });
+        map = newMap;
+        moveCount.current++;
+        setMap([...map]);
+      }
+    }
+
+
+  }
 
 
 }
@@ -314,6 +373,9 @@ function App() {
       <button onClick={() => {
         randomMove(map, setMap, moveCount);
       }}>random</button>
+      <button onClick={() => {
+        breadthFirstSearch(map, setMap, moveCount);
+      }}>BFS</button>
       <div>Moves: {moveCount.current} progress: {25 * 15 - Entities.totalFurnitureBlocks - Entities.totalUniqueTraveledBlocks}</div>
       <div className='grid'>
         {map.map((y, yi) => y.map((x, xi) => <Tile data={x} key={`${yi}-${xi}`} />))}
@@ -323,6 +385,7 @@ function App() {
 }
 
 function Tile({ data }: { data: TileType }) {
+  console.log(Entities.path.at(data))
   let color = 'empty';
 
   switch (data) {

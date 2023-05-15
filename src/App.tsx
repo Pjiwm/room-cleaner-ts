@@ -140,28 +140,25 @@ function moveRoomba(map: Map, x: number, y: number) {
   const roomba = create2DArray(1, 1, TileType.Roomba);
   const traveled = create2DArray(1, 1, TileType.Traveled);
 
-  const newX = Entities.Roomba.x + x;
-  const newY = Entities.Roomba.y + y;
+  const xIsBetweenDomain = numberIsInDomain(0, 25, x);
+  const yIsBetweenDomain = numberIsInDomain(0, 15, y);
 
-  const newXIsBetweenDomain = numberIsInDomain(0, 25, newX);
-  const newYIsBetweenDomain = numberIsInDomain(0, 15, newY);
-
-  if (newXIsBetweenDomain === false || newYIsBetweenDomain === false) {
+  if (xIsBetweenDomain === false || yIsBetweenDomain === false) {
     console.log('out of bounds')
     return;
   }
 
-  if (checkRoombaCollision(map, roomba, newX, newY)) {
+  if (checkRoombaCollision(map, roomba, x, y)) {
     console.log('collision')
     return;
   }
 
 
-  if (map[newY][newX] !== TileType.Traveled && map[newY][newX] !== TileType.Charger) {
+  if (map[y][x] !== TileType.Traveled && map[y][x] !== TileType.Charger) {
     Entities.totalUniqueTraveledBlocks++;
   }
 
-  applyMask(map, roomba, newX, newY);
+  applyMask(map, roomba, x, y);
   applyMask(map, traveled, Entities.Roomba.x, Entities.Roomba.y);
 
   if (Entities.Charger.x === Entities.Roomba.x && Entities.Charger.y === Entities.Roomba.y) {
@@ -170,50 +167,60 @@ function moveRoomba(map: Map, x: number, y: number) {
   }
 
 
-  Entities.Roomba.x += x;
-  Entities.Roomba.y += y;
+  Entities.Roomba.x = x;
+  Entities.Roomba.y = y;
 
   return map;
 }
 
-function depthFirstSearch(map: Map, dx: number, dy: number, setMap: React.Dispatch<React.SetStateAction<TileType[][]>>) {
-  console.log(2)
-  let cx = Entities.Roomba.x + dx;
-  let cy = Entities.Roomba.y + dy;
+function moveRoombaDelta(map: Map, x: number, y: number) {
+  const newX = Entities.Roomba.x + x;
+  const newY = Entities.Roomba.y + y;
 
-  let xIsInBound = numberIsInDomain(0, map[0].length, cx);
-  let yIsInBound = numberIsInDomain(0, map.length, cy);
+  return moveRoomba(map, newX, newY);
+}
+
+// Usage!
+function depthFirstSearch(map: Map, x: number, y: number, setMap: React.Dispatch<React.SetStateAction<TileType[][]>>) {
+  // const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  // await sleep(500);
+  let xIsInBound = numberIsInDomain(0, map[0].length, x);
+  let yIsInBound = numberIsInDomain(0, map.length, y);
 
   if (xIsInBound === false || yIsInBound === false) {
     return;
   }
 
-  let isDiscovered = map[cy][cx] === TileType.Traveled;
+  console.log("x is in bound", xIsInBound, 0, x, map[0].length);
+  console.log("y is in bound", xIsInBound, 0, y, map.length);
+  console.log("map", map);
+
+  console.log("map[x][y]", x,y);
+  let isDiscovered = map[y][x] === TileType.Traveled;
   if (isDiscovered) {
     return;
   }
-  // if (roombaIsOnCharger()) {
-  //   return;
-  // }
+  if (roombaIsOnCharger()) {
+    return;
+  }
+  
 
-  let newMap = moveRoomba(map, dx, dy);
+  let newMap = moveRoomba(map, x, y);
   if (newMap === undefined) {
     return;
   }
-
-  console.log("coordinates", cx, cy)
+  console.log("coordinates", x, y)
   setMap([...newMap]);
 
-  setTimeout(() => {
-    depthFirstSearch(map, 1, 0, setMap)
-    depthFirstSearch(map, -1, 0, setMap);
-    depthFirstSearch(map, 0, 1, setMap);
-    depthFirstSearch(map, 0, -1, setMap);
-  }, 750);
+  depthFirstSearch(map, x + 1, y, setMap);
+  depthFirstSearch(map, x - 1, y, setMap);
+  depthFirstSearch(map, x, y + 1, setMap);
+  depthFirstSearch(map, x, y - 1, setMap);
 }
 
 function App() {
   const [map, setMap] = useState<TileType[][]>([[0]])
+  const [rgb, setRgb] = useState<number[]>([106, 90, 205]);
   const moveCount = useRef(0);
   const timerRef = useRef(0);
 
@@ -224,32 +231,30 @@ function App() {
     generateCharger(map);
     generateRoomba(map);
 
-    // depthFirstSearch(map, 0, 0, setMap);
-
     setMap([...map]);
 
     window.addEventListener('keydown', e => {
       console.log(e.key)
       if (e.key === 'ArrowUp') {
-        const movement = moveRoomba(map, 0, -1);
+        const movement = moveRoombaDelta(map, 0, -1);
         if (movement) {
           setMap([...movement]);
           moveCount.current++;
         }
       } else if (e.key === 'ArrowDown') {
-        const movement = moveRoomba(map, 0, 1);
+        const movement = moveRoombaDelta(map, 0, 1);
         if (movement) {
           setMap([...movement]);
           moveCount.current++;
         }
       } else if (e.key === 'ArrowLeft') {
-        const movement = moveRoomba(map, -1, 0);
+        const movement = moveRoombaDelta(map, -1, 0);
         if (movement) {
           setMap([...movement]);
           moveCount.current++;
         }
       } else if (e.key === 'ArrowRight') {
-        const movement = moveRoomba(map, 1, 0);
+        const movement = moveRoombaDelta(map, 1, 0);
         if (movement) {
           setMap([...movement]);
           moveCount.current++;
@@ -260,21 +265,13 @@ function App() {
 
   }, [])
 
-  // useEffect(() => {
-  //   const timer = () => {
-  //     dfsSearch(map, Entities.Roomba.x, Entities.Roomba.y, setMap);
-  //   };
-
-  //   timerRef.current = setInterval(timer, 500);
-  // },[timerRef])
-
   return (
     <div>
       <button onClick={() => {
         clearInterval(timerRef.current);
       }}>stop</button>
       <button onClick={() => {
-        depthFirstSearch(map, 0, 0, setMap);
+        depthFirstSearch(map, Entities.Roomba.x, Entities.Roomba.y, setMap);
       }}>DFS</button>
       <div>Moves: {moveCount.current} progress: {25 * 15 - Entities.totalFurnitureBlocks - Entities.totalUniqueTraveledBlocks}</div>
       <div className='grid'>

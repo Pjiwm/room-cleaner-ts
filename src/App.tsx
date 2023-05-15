@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import './index.css'
 import { keepNumberInDomain, numberIsInDomain, randomNumberBetween } from './utils/math';
 
+type Mapper = React.Dispatch<React.SetStateAction<TileType[][]>>;
+type Counter = React.MutableRefObject<number>;
+
 enum TileType {
   Empty = 0,
   Furniture = 1,
@@ -136,6 +139,10 @@ function generateFurnitureForPlay(map: Map, amount: number) {
   return newMap;
 }
 
+function remaining(): number {
+  return 25 * 15 - Entities.totalFurnitureBlocks - Entities.totalUniqueTraveledBlocks;
+}
+
 function moveRoomba(map: Map, x: number, y: number) {
   const roomba = create2DArray(1, 1, TileType.Roomba);
   const traveled = create2DArray(1, 1, TileType.Traveled);
@@ -181,7 +188,7 @@ function moveRoombaDelta(map: Map, x: number, y: number) {
 }
 
 // Usage!
-function depthFirstSearch(map: Map, x: number, y: number, setMap: React.Dispatch<React.SetStateAction<TileType[][]>>) {
+function depthFirstSearch(map: Map, x: number, y: number, setMap: Mapper, moveCount: Counter) {
   // const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   // await sleep(500);
   let xIsInBound = numberIsInDomain(0, map[0].length, x);
@@ -212,15 +219,38 @@ function depthFirstSearch(map: Map, x: number, y: number, setMap: React.Dispatch
   console.log("coordinates", x, y)
   setMap([...newMap]);
 
-  depthFirstSearch(map, x + 1, y, setMap);
-  depthFirstSearch(map, x - 1, y, setMap);
-  depthFirstSearch(map, x, y + 1, setMap);
-  depthFirstSearch(map, x, y - 1, setMap);
+  depthFirstSearch(map, x + 1, y, setMap, moveCount);
+  depthFirstSearch(map, x - 1, y, setMap, moveCount);
+  depthFirstSearch(map, x, y + 1, setMap, moveCount);
+  depthFirstSearch(map, x, y - 1, setMap, moveCount);
+}
+
+function randomMove(_map: Map, setMap: Mapper, moveCount: Counter) {
+  while (remaining() > 0) {
+    let map: Map | undefined;
+    switch (randomNumberBetween(0, 3)) {
+      case 0:
+        map = moveRoombaDelta(_map, 1, 0);
+        break;
+      case 1:
+        map = moveRoombaDelta(_map, -1, 0);
+        break;
+      case 2:
+        map = moveRoombaDelta(_map, 0, 1);
+        break;
+      case 3:
+        map = moveRoombaDelta(_map, 0, -1);
+        break;
+    }
+    if (map !== undefined) {
+      moveCount.current++;
+      setMap([...map]);
+    }
+  }
 }
 
 function App() {
   const [map, setMap] = useState<TileType[][]>([[0]])
-  const [rgb, setRgb] = useState<number[]>([106, 90, 205]);
   const moveCount = useRef(0);
   const timerRef = useRef(0);
 
@@ -273,6 +303,9 @@ function App() {
       <button onClick={() => {
         depthFirstSearch(map, Entities.Roomba.x, Entities.Roomba.y, setMap);
       }}>DFS</button>
+      <button onClick={() => {
+        randomMove(map, setMap, moveCount);
+      }}>random</button>
       <div>Moves: {moveCount.current} progress: {25 * 15 - Entities.totalFurnitureBlocks - Entities.totalUniqueTraveledBlocks}</div>
       <div className='grid'>
         {map.map((y, yi) => y.map((x, xi) => <Tile data={x} key={`${yi}-${xi}`} />))}

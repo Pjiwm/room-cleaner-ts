@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import './index.css'
 import { keepNumberInDomain, numberIsInDomain, randomNumberBetween } from './utils/math';
 
+type mapper = React.Dispatch<React.SetStateAction<TileType[][]>>;
+type counter = React.MutableRefObject<number>;
+
 enum TileType {
   Empty = 0,
   Furniture = 1,
@@ -136,6 +139,10 @@ function generateFurnitureForPlay(map: Map, amount: number) {
   return newMap;
 }
 
+function remaining(): number {
+  return 25 * 15 - Entities.totalFurnitureBlocks - Entities.totalUniqueTraveledBlocks;
+}
+
 function moveRoomba(map: Map, x: number, y: number) {
   const roomba = create2DArray(1, 1, TileType.Roomba);
   const traveled = create2DArray(1, 1, TileType.Traveled);
@@ -176,7 +183,7 @@ function moveRoomba(map: Map, x: number, y: number) {
   return map;
 }
 
-function depthFirstSearch(map: Map, dx: number, dy: number, setMap: React.Dispatch<React.SetStateAction<TileType[][]>>) {
+function depthFirstSearch(map: Map, dx: number, dy: number, setMap: mapper) {
   console.log(2)
   let cx = Entities.Roomba.x + dx;
   let cy = Entities.Roomba.y + dy;
@@ -211,6 +218,34 @@ function depthFirstSearch(map: Map, dx: number, dy: number, setMap: React.Dispat
     depthFirstSearch(map, 0, -1, setMap);
   }, 750);
 }
+function randomMove(_map: Map, setMap: mapper, moveCount: counter) {
+  while (remaining() > 0) {
+    let map: Map | undefined;
+    switch (randomNumberBetween(0, 3)) {
+      case 0:
+        map = moveRoomba(_map, 1, 0);
+        break;
+      case 1:
+        map = moveRoomba(_map, -1, 0);
+        break;
+      case 2:
+        map = moveRoomba(_map, 0, 1);
+        break;
+      case 3:
+        map = moveRoomba(_map, 0, -1);
+        break;
+    }
+    console.log("help");
+    if (map !== undefined) {
+      moveCount.current++;
+      setMap([...map]);
+    }
+  }
+
+
+
+}
+
 
 function App() {
   const [map, setMap] = useState<TileType[][]>([[0]])
@@ -276,6 +311,9 @@ function App() {
       <button onClick={() => {
         depthFirstSearch(map, 0, 0, setMap);
       }}>DFS</button>
+      <button onClick={() => {
+        randomMove(map, setMap, moveCount);
+      }}>random</button>
       <div>Moves: {moveCount.current} progress: {25 * 15 - Entities.totalFurnitureBlocks - Entities.totalUniqueTraveledBlocks}</div>
       <div className='grid'>
         {map.map((y, yi) => y.map((x, xi) => <Tile data={x} key={`${yi}-${xi}`} />))}
